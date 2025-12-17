@@ -234,6 +234,7 @@ class Qwen2VLChat(Qwen2VLPromptMixin, BaseModel):
         elif listinstr(['2.5', '2_5', 'qwen25', 'mimo'], model_path.lower()):
             from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
             MODEL_CLS = Qwen2_5_VLForConditionalGeneration
+            print(f"model path: {model_path}")
             self.processor = AutoProcessor.from_pretrained(model_path)
         else:
             from transformers import Qwen2VLForConditionalGeneration, Qwen2VLProcessor
@@ -434,6 +435,18 @@ class Qwen2VLChat(Qwen2VLPromptMixin, BaseModel):
             else:
                 raise ValueError(f"Invalid message type: {s['type']}, {s}")
         return content
+    def get_image_token_masks(self, input_ids, model):
+        bsz, seq_len = input_ids.shape
+        image_masks_list = []
+        for i in range(bsz):
+            image_token_mask = torch.ones(seq_len, dtype=torch.bool)
+            vision_index = torch.where(input_ids[i] == model.config.vision_token_id)[0]
+            image_index = torch.where(input_ids[i] == model.config.image_token_id)[0]
+            image_token_mask[image_index] = False
+            image_token_mask[vision_index] = False
+            image_masks_list.append(image_token_mask)
+        image_token_masks = torch.stack(image_masks_list, dim=0)
+        return image_token_masks
 
     def generate_inner_transformers(self, message, dataset=None):
         if listinstr(['omni'], self.model_path.lower()):
@@ -464,6 +477,11 @@ class Qwen2VLChat(Qwen2VLPromptMixin, BaseModel):
             images, videos = process_vision_info([messages])
             inputs = self.processor(text=text, images=images, videos=videos, padding=True, return_tensors='pt')  # noqa: E501
         inputs = inputs.to('cuda')
+        image_masks = self.get_image_token_masks(inputs.input_ids, self.model)
+        # print(f"image_masks: {image_masks.shape}")
+        image_masks = image_masks.to("cuda")
+
+
 
         if listinstr(['omni'], self.model_path.lower()):
             self.generate_kwargs['use_audio_in_video'] = self.use_audio_in_video
@@ -471,7 +489,9 @@ class Qwen2VLChat(Qwen2VLPromptMixin, BaseModel):
         generated_ids = self.model.generate(
             **inputs,
             **self.generate_kwargs,
+            kwargs={"image_masks": image_masks, "skip_decode": False},
         )
+        # print(f"generated ids shape: {generated_ids.shape}")
         generated_ids = [
             output_ids[len(input_ids):] for input_ids, output_ids in zip(inputs.input_ids, generated_ids)
         ]
