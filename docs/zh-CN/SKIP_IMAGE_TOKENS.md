@@ -106,6 +106,6 @@ Scalars: {27: 0.9066757559776306, 5: 1.0371835231781006, 16: 0.988783597946167, 
 ## 运行评测脚本
 
 ```
-CUDA_VISIBLE_DEVICES=0 torchrun --rdzv_endpoint=localhost:29412  run.py --data MME MMBench_DEV_EN MMBench_DEV_CN ChartQA_TEST TextVQA_VAL MMMU_DEV_VAL OCRBench  --model Qwen2.5-VL-7B-Instruct --verbose
+CUDA_VISIBLE_DEVICES=0 torchrun --rdzv_endpoint=localhost:29413  run.py --data MME MMBench_DEV_EN MMBench_DEV_CN ChartQA_TEST TextVQA_VAL MMMU_DEV_VAL OCRBench  --model Qwen2.5-VL-7B-Instruct --verbose --work-dir output_scalars
 
 ```
