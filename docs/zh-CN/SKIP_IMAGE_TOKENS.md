@@ -14,7 +14,7 @@ pip install -e ./third_party/transformers
 
 ```
 
-python qwen_beam_search_layer.py --checkpoint /data/share/Qwen2.5-VL-7B-Instruct/ --dataset textvqa_val --n-samples 100 --beam_width 1 --target_saving_benefits 9
+python qwen_beam_search_layer.py --checkpoint /data/share/Qwen2.5-VL-32B-Instruct/ --dataset textvqa_val --n-samples 20 --beam_width 1 --target_saving_benefits 20
 
 ```
 
@@ -106,6 +106,6 @@ Scalars: {27: 0.9066757559776306, 5: 1.0371835231781006, 16: 0.988783597946167, 
 ## 运行评测脚本
 
 ```
-CUDA_VISIBLE_DEVICES=0 torchrun --rdzv_endpoint=localhost:29413  run.py --data MME MMBench_DEV_EN MMBench_DEV_CN ChartQA_TEST TextVQA_VAL MMMU_DEV_VAL OCRBench  --model Qwen2.5-VL-7B-Instruct --verbose --work-dir output_scalars
+CUDA_VISIBLE_DEVICES=0 torchrun --rdzv_endpoint=localhost:29413  run.py --data MME MMBench_DEV_EN MMBench_DEV_CN ChartQA_TEST TextVQA_VAL MMMU_DEV_VAL OCRBench  --model Qwen2.5-VL-7B-Instruct --verbose --work-dir output_16_scalars
 
 ```

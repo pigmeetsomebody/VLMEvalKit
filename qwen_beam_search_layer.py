@@ -161,12 +161,13 @@ def set_text_model_config_skip_layer_and_layer_scalar(model, skip_mlp_list, skip
     # Ensure lists are unique and sorted for consistency
     model.model.language_model.skip_layer_mlp = sorted(list(set(skip_mlp_list)))
     model.model.language_model.skip_layer_attn = sorted(list(set(skip_attn_list)))
+    model.model.language_model.mlp_scalars = mlp_scalars
     
-    clear_hooks()
+    # clear_hooks()
     # Apply scalars only for MLPs that are actually skipped
-    for layer_idx, scalar in mlp_scalars.items():
-        if layer_idx in skip_mlp_list:
-            register_scaling_hook(model, layer_idx, scalar)
+    # for layer_idx, scalar in mlp_scalars.items():
+    #     if layer_idx in skip_mlp_list:
+    #         register_scaling_hook(model, layer_idx, scalar)
 
 def extract_image_hidden_states(hidden_states, image_masks):
     """
@@ -378,15 +379,16 @@ def run_mixed_beam_search(model, processor, dataloader, n_samples, n_generation_
     BENEFIT_ATTN = 0.5
 
    
-
+    skip_mlp = model.model.language_model.skip_layer_mlp.copy()
+    skip_layer_attn = model.model.language_model.skip_layer_attn.copy()
     initial_beam = {
-        'skip_mlp': [],
-        'skip_attn': [],
-        'scalars': {}, # Dict: {layer_idx: value}
+        'skip_mlp': skip_mlp,
+        'skip_attn': skip_layer_attn,
+        'scalars': model.model.language_model.mlp_scalars.copy(), # Dict: {layer_idx: value}
         'rem_mlp': list(all_mlp_candidates),
         'rem_attn': list(all_attn_candidates),
         'score': 0.0,
-        'current_benefit': 0.0,
+        'current_benefit': len(skip_mlp) * BENEFIT_MLP + len(skip_layer_attn) * BENEFIT_ATTN,
     }
     
     active_beams = [initial_beam]
@@ -432,7 +434,7 @@ def run_mixed_beam_search(model, processor, dataloader, n_samples, n_generation_
                 # you technically need to run again. 
                 # For greedy speed, we can assume applying the scalar improves/maintains the approximation.
                 # Let's verify with the scalar applied.
-                temp_scalars[mlp_cand] = new_scalar_val
+                temp_scalars[str(mlp_cand)] = new_scalar_val
                 
                 # final_score, _ = calculate_kl_score_and_new_scalar(
                 #     model, processor, dataloader, n_samples, n_generation_tokens, 
@@ -538,9 +540,21 @@ def main():
         collate_fn=partial(collate_fn, processor=processor),
     )
 
+    current_skip_mlps = model.model.language_model.skip_layer_mlp
+    current_skip_layer_attn =  model.model.language_model.skip_layer_attn
+
     # Example: Prune from layer 24 to 26
-    all_mlp_candidates = [i for i in range(3, model.config.num_hidden_layers)]
-    all_attn_candidates = [i for i in range(3, model.config.num_hidden_layers)]
+    all_mlp_candidates = []
+    for i in range(3, model.config.num_hidden_layers):
+        if i not in current_skip_mlps:
+            all_mlp_candidates.append(i)
+    all_attn_candidates = []
+    for i in range(3, model.config.num_hidden_layers):
+        if i not in current_skip_layer_attn:
+            all_attn_candidates.append(i)
+    
+    # all_mlp_candidates = [i for i in range(3, model.config.num_hidden_layers)]
+    # all_attn_candidates = [i for i in range(3, model.config.num_hidden_layers)]
 
     final_pool = run_mixed_beam_search(
         model, processor, dataloader, args.n_samples, 10,
